@@ -1,5 +1,4 @@
 use crossbeam_channel as cbc;
-use serde;
 
 #[path = "./sock.rs"]
 mod sock;

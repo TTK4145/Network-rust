@@ -6,7 +6,6 @@ use std::time;
 
 use crossbeam_channel as cbc;
 use network_rust::udpnet;
-use serde;
 
 // Data types to be sent on the network must derive traits for serialization
 #[derive(serde::Serialize, serde::Deserialize, Debug, Clone)]
@@ -57,7 +56,6 @@ fn main() -> std::io::Result<()> {
     // Periodically produce a custom data message
     let (custom_data_send_tx, custom_data_send_rx) = cbc::unbounded::<CustomDataType>();
     {
-        let id = id.clone();
         spawn(move || {
             let mut cd = CustomDataType {
                 message: format!("Hello from node {}", id),
