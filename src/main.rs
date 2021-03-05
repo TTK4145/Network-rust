@@ -8,11 +8,8 @@ use std::net;
 
 use crossbeam_channel as cbc;
 use serde;
+use network_rust::udpnet;
 
-mod udpnet {
-    pub mod peers;
-    pub mod bcast;
-}
 
 // Data types to be sent on the network must derive traits for serialization
 #[derive(serde::Serialize, serde::Deserialize, Debug, Clone)]
