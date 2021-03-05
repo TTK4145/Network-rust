@@ -1,9 +1,7 @@
-
 use std::io;
 use std::net;
 
-
-use socket2::{Socket, Domain, Type, Protocol};
+use socket2::{Domain, Protocol, Socket, Type};
 
 pub fn new_tx(port: u16) -> io::Result<Socket> {
     let sock = Socket::new(Domain::ipv4(), Type::dgram(), Some(Protocol::udp()))?;

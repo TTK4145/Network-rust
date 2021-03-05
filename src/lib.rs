@@ -1,4 +1,4 @@
 pub mod udpnet {
-    pub mod peers;
     pub mod bcast;
+    pub mod peers;
 }
