@@ -19,8 +19,10 @@ pub fn rx<T: serde::de::DeserializeOwned>(port: u16, ch: cbc::Sender<T>) {
 
     loop {
         let n = s.recv(&mut buf).unwrap();
-        let msg = std::str::from_utf8(&buf[..n]).unwrap();
-        let data = serde_json::from_str::<T>(&msg).unwrap();
-        ch.send(data).unwrap();
+        if let Ok(msg) = std::str::from_utf8(&buf[..n]) {
+            if let Ok(data) = serde_json::from_str::<T>(&msg) {
+                ch.send(data).unwrap();
+            }
+        }
     }
 }
