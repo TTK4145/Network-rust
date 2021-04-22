@@ -8,7 +8,7 @@ pub fn new_tx(port: u16) -> io::Result<Socket> {
     sock.set_broadcast(true)?;
     sock.set_reuse_address(true)?;
     let remote_addr = net::SocketAddr::from(([255, 255, 255, 255], port));
-    sock.connect(&remote_addr.into()).unwrap();
+    sock.connect(&remote_addr.into())?;
     Ok(sock)
 }
 
@@ -17,6 +17,6 @@ pub fn new_rx(port: u16) -> io::Result<Socket> {
     sock.set_broadcast(true)?;
     sock.set_reuse_address(true)?;
     let local_addr = net::SocketAddr::from(([0, 0, 0, 0], port));
-    sock.bind(&local_addr.into()).unwrap();
+    sock.bind(&local_addr.into())?;
     Ok(sock)
 }
