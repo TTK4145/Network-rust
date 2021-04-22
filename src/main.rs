@@ -40,7 +40,7 @@ fn main() -> std::io::Result<()> {
         let id = id.clone();
         let disconnected_tx = disconnected_tx.clone();
         spawn(move || {
-            if let Err(_) = udpnet::peers::tx(peer_port, id, peer_tx_enable_rx) {
+            if udpnet::peers::tx(peer_port, id, peer_tx_enable_rx).is_err() {
                 disconnected_tx.send(()).unwrap();
             }
         })
@@ -58,16 +58,11 @@ fn main() -> std::io::Result<()> {
     let (peer_update_tx, peer_update_rx) = cbc::unbounded::<udpnet::peers::PeerUpdate>();
     {
         let disconnected_tx = disconnected_tx.clone();
-
         spawn(move || {
-            if let Err(_) = udpnet::peers::rx(peer_port, peer_update_tx) {
+            if udpnet::peers::rx(peer_port, peer_update_tx).is_err() {
                 disconnected_tx.send(()).unwrap();
             }
         });
-    }
-
-    if let Ok(_) = disconnected_rx.recv_timeout(Duration::from_secs(1)) {
-        panic!("Unable to connect to network");
     }
 
     // Periodically produce a custom data message
@@ -86,14 +81,24 @@ fn main() -> std::io::Result<()> {
         });
     }
     // The sender for our custom data
-    spawn(move || {
-        udpnet::bcast::tx(msg_port, custom_data_send_rx);
-    });
+    {
+        let disconnected_tx = disconnected_tx.clone();
+        spawn(move || {
+            if udpnet::bcast::tx(msg_port, custom_data_send_rx).is_err() {
+                disconnected_tx.send(()).unwrap();
+            }
+        });
+    }
     // The receiver for our custom data
     let (custom_data_recv_tx, custom_data_recv_rx) = cbc::unbounded::<CustomDataType>();
     spawn(move || {
-        udpnet::bcast::rx(msg_port, custom_data_recv_tx);
+        if udpnet::bcast::rx(msg_port, custom_data_recv_tx).is_err() {
+            disconnected_tx.send(()).unwrap();
+        }
     });
+    if disconnected_rx.recv_timeout(Duration::from_secs(1)).is_ok() {
+        panic!("Unable to connect to network");
+    }
 
     // main body: receive peer updates and data from the network
     loop {
