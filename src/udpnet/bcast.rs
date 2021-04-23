@@ -14,7 +14,9 @@ pub fn tx<T: serde::Serialize>(port: u16, ch: cbc::Receiver<T>) -> std::io::Resu
     loop {
         let data = ch.recv().unwrap();
         let serialized = serde_json::to_string(&data).unwrap();
-        s.send(serialized.as_bytes()).unwrap();
+        if let Err(e) = s.send(serialized.as_bytes()) {
+            warn!("Unable to send packet, {}", e);
+        }
     }
 }
 
