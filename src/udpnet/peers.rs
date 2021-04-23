@@ -3,6 +3,7 @@ use std::str;
 use std::time;
 
 use crossbeam_channel as cbc;
+use log::error;
 
 #[path = "./sock.rs"]
 mod sock;
@@ -14,8 +15,12 @@ pub struct PeerUpdate {
     pub lost: Vec<String>,
 }
 
-pub fn tx(port: u16, id: String, tx_enable: cbc::Receiver<bool>) {
-    let s = sock::new_tx(port).unwrap();
+/// Periodically broadcast `id` can be toggled with `tx_enable`
+///
+/// Returns `Err` when creating a socket fails. Ignores sending errors after
+/// the socket has been created.
+pub fn tx(port: u16, id: String, tx_enable: cbc::Receiver<bool>) -> std::io::Result<()> {
+    let s = sock::new_tx(port)?;
 
     let mut enabled = true;
 
@@ -28,17 +33,24 @@ pub fn tx(port: u16, id: String, tx_enable: cbc::Receiver<bool>) {
             },
             recv(ticker) -> _ => {
                 if enabled {
-                    s.send(id.as_bytes()).unwrap();
+                    if let Err(e) = s.send(id.as_bytes()) {
+                        error!("Sending failed: {}", e);
+                    }
                 }
             },
         }
     }
 }
 
-pub fn rx(port: u16, peer_update: cbc::Sender<PeerUpdate>) {
+/// Forward `id`'s retrieved from the network on port `port`.
+///
+/// Returns `Err` when creating a socket fails. Ignores receiving errors after
+/// creating a socket.
+/// Panics if sending to the channel fails.
+pub fn rx(port: u16, peer_update: cbc::Sender<PeerUpdate>) -> std::io::Result<()> {
     let timeout = time::Duration::from_millis(500);
-    let s = sock::new_rx(port).unwrap();
-    s.set_read_timeout(Some(timeout)).unwrap();
+    let s = sock::new_rx(port)?;
+    s.set_read_timeout(Some(timeout))?;
 
     let mut last_seen: HashMap<String, time::Instant> = HashMap::new();
     let mut buf = [0; 1024];
@@ -51,13 +63,11 @@ pub fn rx(port: u16, peer_update: cbc::Sender<PeerUpdate>) {
             lost: Vec::new(),
         };
 
-        let r = s.recv(&mut buf);
         let now = time::Instant::now();
 
         // Finding new peers
-        match r {
-            Ok(n) => {
-                let id = str::from_utf8(&buf[..n]).unwrap();
+        if let Ok(n) = s.recv(&mut buf) {
+            if let Ok(id) = str::from_utf8(&buf[..n]) {
                 p.new = if !last_seen.contains_key(id) {
                     modified = true;
                     Some(id.to_string())
@@ -66,7 +76,6 @@ pub fn rx(port: u16, peer_update: cbc::Sender<PeerUpdate>) {
                 };
                 last_seen.insert(id.to_string(), now);
             }
-            Err(_e) => {}
         }
 
         // Finding lost peers

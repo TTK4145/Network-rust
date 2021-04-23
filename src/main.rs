@@ -2,7 +2,7 @@ use std::env;
 use std::net;
 use std::process;
 use std::thread::*;
-use std::time;
+use std::time::Duration;
 
 use crossbeam_channel as cbc;
 use network_rust::udpnet;
@@ -31,27 +31,39 @@ fn main() -> std::io::Result<()> {
     let msg_port = 19735;
     let peer_port = 19738;
 
+    // send a message here if we are ever disconnected from the network
+    let (disconnected_tx, disconnected_rx) = cbc::unbounded::<()>();
+
     // The sender for peer discovery
     let (peer_tx_enable_tx, peer_tx_enable_rx) = cbc::unbounded::<bool>();
-    {
+    let _handler = {
         let id = id.clone();
+        let disconnected_tx = disconnected_tx.clone();
         spawn(move || {
-            udpnet::peers::tx(peer_port, id, peer_tx_enable_rx);
-        });
-    }
+            if udpnet::peers::tx(peer_port, id, peer_tx_enable_rx).is_err() {
+                disconnected_tx.send(()).unwrap();
+            }
+        })
+    };
+
     // (periodically disable/enable the peer broadcast, to provoke new peer / peer loss messages)
     spawn(move || loop {
-        sleep(time::Duration::new(6, 0));
+        sleep(Duration::new(6, 0));
         peer_tx_enable_tx.send(false).unwrap();
-        sleep(time::Duration::new(3, 0));
+        sleep(Duration::new(3, 0));
         peer_tx_enable_tx.send(true).unwrap();
     });
 
     // The receiver for peer discovery updates
     let (peer_update_tx, peer_update_rx) = cbc::unbounded::<udpnet::peers::PeerUpdate>();
-    spawn(move || {
-        udpnet::peers::rx(peer_port, peer_update_tx);
-    });
+    {
+        let disconnected_tx = disconnected_tx.clone();
+        spawn(move || {
+            if udpnet::peers::rx(peer_port, peer_update_tx).is_err() {
+                disconnected_tx.send(()).unwrap();
+            }
+        });
+    }
 
     // Periodically produce a custom data message
     let (custom_data_send_tx, custom_data_send_rx) = cbc::unbounded::<CustomDataType>();
@@ -64,19 +76,29 @@ fn main() -> std::io::Result<()> {
             loop {
                 custom_data_send_tx.send(cd.clone()).unwrap();
                 cd.iteration += 1;
-                sleep(time::Duration::new(1, 0));
+                sleep(Duration::new(1, 0));
             }
         });
     }
     // The sender for our custom data
-    spawn(move || {
-        udpnet::bcast::tx(msg_port, custom_data_send_rx);
-    });
+    {
+        let disconnected_tx = disconnected_tx.clone();
+        spawn(move || {
+            if udpnet::bcast::tx(msg_port, custom_data_send_rx).is_err() {
+                disconnected_tx.send(()).unwrap();
+            }
+        });
+    }
     // The receiver for our custom data
     let (custom_data_recv_tx, custom_data_recv_rx) = cbc::unbounded::<CustomDataType>();
     spawn(move || {
-        udpnet::bcast::rx(msg_port, custom_data_recv_tx);
+        if udpnet::bcast::rx(msg_port, custom_data_recv_tx).is_err() {
+            disconnected_tx.send(()).unwrap();
+        }
     });
+    if disconnected_rx.recv_timeout(Duration::from_secs(1)).is_ok() {
+        panic!("Unable to connect to network");
+    }
 
     // main body: receive peer updates and data from the network
     loop {
