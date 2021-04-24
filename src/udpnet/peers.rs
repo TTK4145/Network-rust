@@ -20,7 +20,7 @@ pub struct PeerUpdate {
 /// Returns `Err` when creating a socket fails. Ignores sending errors after
 /// the socket has been created.
 pub fn tx(port: u16, id: String, tx_enable: cbc::Receiver<bool>) -> std::io::Result<()> {
-    let s = sock::new_tx(port)?;
+    let (s, addr) = sock::new_tx(port)?;
 
     let mut enabled = true;
 
@@ -33,7 +33,7 @@ pub fn tx(port: u16, id: String, tx_enable: cbc::Receiver<bool>) -> std::io::Res
             },
             recv(ticker) -> _ => {
                 if enabled {
-                    if let Err(e) = s.send(id.as_bytes()) {
+                    if let Err(e) = s.send_to(id.as_bytes(), &addr) {
                         error!("Sending failed: {}", e);
                     }
                 }

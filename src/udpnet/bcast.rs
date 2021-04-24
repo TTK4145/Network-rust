@@ -10,11 +10,11 @@ use std::str;
 mod sock;
 
 pub fn tx<T: serde::Serialize>(port: u16, ch: cbc::Receiver<T>) -> std::io::Result<()> {
-    let s = sock::new_tx(port)?;
+    let (s, addr) = sock::new_tx(port)?;
     loop {
         let data = ch.recv().unwrap();
         let serialized = serde_json::to_string(&data).unwrap();
-        if let Err(e) = s.send(serialized.as_bytes()) {
+        if let Err(e) = s.send_to(serialized.as_bytes(), &addr) {
             warn!("Unable to send packet, {}", e);
         }
     }
