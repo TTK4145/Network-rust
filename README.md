@@ -21,3 +21,17 @@ use network_rust::udpnet;
 ```
 
 For an example of usage, see [main.rs](src/main.rs).
+
+
+## Logging
+
+This library uses the standard `log` crate to log errors whenever failing to send messages fail. These messages are **ignored by default**,
+if you have configured a logging setup (through e.g. `env_logger`), you can easily change the `RUST_LOG` environment variable to ignore
+the logging from this module. E.g. if your default logging level is trace you would do the following in most shells:
+
+```sh
+export RUST_LOG=trace,network_rust=off
+```
+
+This is only relevant if you have set up logging for your project.
+
